@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-// 1. Import the register function from your api service
-import { register } from "../services/api"; 
+import { register } from "../services/api";
 
 function Register() {
   const navigate = useNavigate();
@@ -10,8 +9,10 @@ function Register() {
     email: "",
     username: "",
     password: "",
-    confirmPassword: ""
+    confirmPassword: "",
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -19,135 +20,158 @@ function Register() {
 
   const handleRegister = async () => {
     const { fullName, email, username, password, confirmPassword } = formData;
-    
+    setError("");
     if (!fullName || !email || !username || !password || !confirmPassword) {
-      alert("Please fill in all fields");
-      return;
+      setError("Please fill in all fields"); return;
     }
     if (password !== confirmPassword) {
-      alert("Passwords do not match");
-      return;
+      setError("Passwords do not match"); return;
     }
-
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters"); return;
+    }
+    setLoading(true);
     try {
-
-      const res = await register({
-        fullName,
-        username,
-        email,
-        password
-      });
-
+      const res = await register({ fullName, username, email, password });
       if (res.status === 200 || res.status === 201) {
-        alert("Registration Successful!");
-        navigate("/login"); 
+        navigate("/login");
       }
     } catch (err: any) {
- 
-      alert(err.response?.data?.message || "Registration failed. Try again.");
+      setError(err.response?.data?.message || "Registration failed. Try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
+  const fields = [
+    { name: "fullName",        placeholder: "John Santos",           label: "Full Name",        type: "text" },
+    { name: "email",           placeholder: "john@email.com",        label: "Email Address",    type: "email" },
+    { name: "username",        placeholder: "johnsantos",            label: "Username",         type: "text" },
+    { name: "password",        placeholder: "Min. 6 characters",     label: "Password",         type: "password" },
+    { name: "confirmPassword", placeholder: "Repeat your password",  label: "Confirm Password", type: "password" },
+  ];
+
   return (
-    <div style={container}>
-      <div style={card}>
-        <h1 style={logo}>Study Planner</h1>
-        <h2 style={title}>Register</h2>
+    <div style={page}>
+      <div style={blob1} />
+      <div style={blob2} />
 
-        <input
-          name="fullName"
-          placeholder="Full Name"
-          style={input}
-          onChange={handleChange}
-        />
-        <input
-          name="email"
-          type="email"
-          placeholder="Email"
-          style={input}
-          onChange={handleChange}
-        />
-        <input
-          name="username"
-          placeholder="Username"
-          style={input}
-          onChange={handleChange}
-        />
-        <input
-          name="password"
-          type="password"
-          placeholder="Password"
-          style={input}
-          onChange={handleChange}
-        />
-        <input
-          name="confirmPassword"
-          type="password"
-          placeholder="Confirm Password"
-          style={input}
-          onChange={handleChange}
-        />
+      <div style={card} className="fade-in">
+        <div style={logoWrap}>
+          <div style={logoIcon}>🎓</div>
+          <h1 style={logoText}>Study Planner</h1>
+          <p style={logoSub}>Join thousands of students</p>
+        </div>
 
-        <button style={button} onClick={handleRegister}>
-          Register
+        <h2 style={heading}>Create your account ✨</h2>
+        <p style={subheading}>Start organizing your academic life today</p>
+
+        {error && <div style={errorBox}>{error}</div>}
+
+        {fields.map((f) => (
+          <div key={f.name} style={fieldGroup}>
+            <label style={labelStyle}>{f.label}</label>
+            <input
+              id={`register-${f.name}`}
+              name={f.name}
+              type={f.type}
+              placeholder={f.placeholder}
+              style={inputStyle}
+              onChange={handleChange}
+              onKeyDown={(e) => e.key === "Enter" && handleRegister()}
+            />
+          </div>
+        ))}
+
+        <button
+          id="register-btn"
+          style={loading ? btnDisabled : btn}
+          onClick={handleRegister}
+          disabled={loading}
+        >
+          {loading ? "Creating account..." : "Create Account →"}
         </button>
 
-        <p style={smallText}>
+        <p style={footerText}>
           Already have an account?{" "}
-          <Link to="/login" style={link}>
-            Login
-          </Link>
+          <Link to="/login" style={linkStyle}>Sign in</Link>
         </p>
       </div>
     </div>
   );
 }
 
-
-const container: React.CSSProperties = {
+const page: React.CSSProperties = {
   minHeight: "100vh",
   display: "flex",
-  justifyContent: "center",
   alignItems: "center",
-  backgroundColor: "#f3f4f6",
+  justifyContent: "center",
+  background: "var(--bg)",
+  position: "relative",
+  overflow: "hidden",
+  padding: "20px",
+};
+
+const blob1: React.CSSProperties = {
+  position: "fixed", top: "-150px", right: "-100px",
+  width: "420px", height: "420px", borderRadius: "50%",
+  background: "radial-gradient(circle, rgba(124,92,252,0.2) 0%, transparent 70%)",
+  pointerEvents: "none",
+};
+const blob2: React.CSSProperties = {
+  position: "fixed", bottom: "-100px", left: "-80px",
+  width: "350px", height: "350px", borderRadius: "50%",
+  background: "radial-gradient(circle, rgba(252,92,125,0.18) 0%, transparent 70%)",
+  pointerEvents: "none",
 };
 
 const card: React.CSSProperties = {
-  width: 380,
-  padding: 35,
-  backgroundColor: "#333",
-  borderRadius: 12,
-  textAlign: "center",
-  color: "#EEE",
-  boxShadow: "0 8px 20px rgba(0,0,0,0.15)",
+  width: "100%", maxWidth: "430px",
+  background: "var(--bg-card)",
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-lg)",
+  padding: "38px 34px",
+  boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
+  position: "relative", zIndex: 1,
 };
 
-const logo: React.CSSProperties = { marginBottom: 10 };
-const title: React.CSSProperties = { marginBottom: 20 };
+const logoWrap: React.CSSProperties = { textAlign: "center", marginBottom: "24px" };
+const logoIcon: React.CSSProperties = { fontSize: "38px", display: "block", marginBottom: "8px", animation: "float 3s ease-in-out infinite" };
+const logoText: React.CSSProperties = {
+  fontFamily: "var(--font-alt)", fontSize: "21px", fontWeight: "700",
+  background: "var(--accent-grad)", WebkitBackgroundClip: "text",
+  WebkitTextFillColor: "transparent", backgroundClip: "text",
+};
+const logoSub: React.CSSProperties = { fontSize: "12px", color: "var(--text-muted)", marginTop: "2px" };
+const heading: React.CSSProperties = { fontSize: "21px", fontWeight: "700", color: "var(--text)", marginBottom: "5px" };
+const subheading: React.CSSProperties = { fontSize: "13px", color: "var(--text-dim)", marginBottom: "22px" };
 
-const input: React.CSSProperties = {
-  width: "100%",
-  height: 45,
-  padding: "0 12px",
-  marginBottom: 15,
-  borderRadius: 6,
-  border: "1px solid #555",
-  backgroundColor: "#444",
-  color: "#EEE",
+const errorBox: React.CSSProperties = {
+  background: "rgba(252,92,125,0.1)", border: "1px solid rgba(252,92,125,0.3)",
+  color: "#fc8fa3", padding: "10px 14px", borderRadius: "var(--radius-sm)",
+  fontSize: "13px", marginBottom: "16px",
 };
 
-const button: React.CSSProperties = {
-  width: "100%",
-  height: 45,
-  borderRadius: 6,
-  border: "none",
-  backgroundColor: "#000",
-  color: "#EEE",
-  fontWeight: "bold",
-  cursor: "pointer",
+const fieldGroup: React.CSSProperties = { marginBottom: "14px" };
+const labelStyle: React.CSSProperties = {
+  display: "block", fontSize: "12px", fontWeight: "600",
+  color: "var(--text-dim)", marginBottom: "6px", letterSpacing: "0.02em",
 };
-
-const smallText: React.CSSProperties = { fontSize: 13, marginTop: 12 };
-const link: React.CSSProperties = { color: "#EEE", textDecoration: "underline" };
+const inputStyle: React.CSSProperties = {
+  width: "100%", padding: "11px 13px",
+  background: "var(--bg-surface)", border: "1px solid var(--border)",
+  borderRadius: "var(--radius-sm)", color: "var(--text)", fontSize: "14px",
+  outline: "none", transition: "border-color 0.2s", boxSizing: "border-box",
+};
+const btn: React.CSSProperties = {
+  width: "100%", padding: "13px",
+  background: "var(--accent-grad)", border: "none",
+  borderRadius: "var(--radius-sm)", color: "#fff",
+  fontSize: "15px", fontWeight: "700", letterSpacing: "0.02em",
+  boxShadow: "var(--shadow-accent)", marginTop: "8px",
+};
+const btnDisabled: React.CSSProperties = { ...btn, opacity: 0.6, cursor: "not-allowed" };
+const footerText: React.CSSProperties = { textAlign: "center", marginTop: "20px", fontSize: "13px", color: "var(--text-muted)" };
+const linkStyle: React.CSSProperties = { color: "var(--accent)", fontWeight: "600", textDecoration: "none" };
 
 export default Register;

@@ -24,8 +24,10 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "start:backend": "cd backend && node server.js",
-    "dev:backend": "cd backend && node --watch server.js"
+    "start:backend": "npm run start --prefix backend",
+    "dev:backend": "npm run dev --prefix backend",
+    "start:frontend": "npm run start --prefix \"Frontend Codes\"",
+    "sync:frontend": "cpx \"Frontend Codes/src/index.css\" src/ && cpx \"Frontend Codes/src/App.tsx\" src/ && cpx \"Frontend Codes/src/pages/**\" src/pages/ && cpx \"Frontend Codes/src/services/**\" src/services/"
   },
   "eslintConfig": {
     "extends": [
@@ -46,6 +48,8 @@
     ]
   },
   "devDependencies": {
-    "@types/react-router-dom": "^5.3.3"
+    "@types/react-router-dom": "^5.3.3",
+    "cpx2": "^8.0.0",
+    "cross-env": "^10.1.0"
   }
 }

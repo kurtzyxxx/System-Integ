@@ -1,148 +1,201 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-// Use your axios instance to ensure the correct BaseURL (port 8080) is used
 import { login } from "../services/api";
+import ThemeToggle from "../components/ThemeToggle";
 
-function Login() {
+export default function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(""); 
-  const [loading, setLoading] = useState(false); 
+  const [error, setError]       = useState("");
+  const [loading, setLoading]   = useState(false);
 
   const handleLogin = async () => {
-    setError(""); 
-    
-    if (!email || !password) {
-      setError("Please fill in all fields");
-      return;
-    }
-
+    setError("");
+    if (!email || !password) { setError("Please fill in all fields."); return; }
     setLoading(true);
     try {
       const res = await login({ email, password });
-      
       if (res.status === 200) {
         localStorage.setItem("user", JSON.stringify(res.data.user));
+        // Remove old shared avatar key — each user loads their own via sp_avatar_{username}
+        localStorage.removeItem("sp_avatar");
         navigate("/dashboard");
       }
-    } catch (err: any) {
-      // 3. Set the error message if the backend sends a 401
-      setError("Incorrect email or password. Please try again.");
-      console.error("Login detail:", err.response?.data);
+    } catch {
+      setError("Invalid email or password.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={container}>
-      <div style={card}>
-        <h1 style={logo}>Study Planner</h1>
-        <h2 style={title}>Login</h2>
+    <div style={page}>
+      <div style={panel}>
+        <div style={brandBar}>
+          <img src="/logo.png" alt="logo" style={brandIcon} />
+          <span style={brandName}>Study Planner</span>
+        </div>
+        <h2 style={tagline}>Plan smarter, study better.</h2>
+        <p style={taglineSub}>Your all-in-one academic organizer.</p>
+        <div style={decorLine} />
+        <div style={decorDots}>
+          {[...Array(4)].map((_, i) => <div key={i} style={decorDot} />)}
+        </div>
+        <div style={{ marginTop: 28 }}>
+          <ThemeToggle variant="corner" />
+        </div>
+      </div>
 
-        {error && <div style={errorBanner}>{error}</div>}
+      <div style={formWrap} className="fade-in">
+        <h1 style={formTitle}>Welcome back</h1>
+        <p style={formSub}>Sign in to your account to continue.</p>
 
-        <input
-          type="email"
-          placeholder="Email"
-          style={inputStyle}
-          onChange={(e) => setEmail(e.target.value)}
-        />
+        {error && <div style={errorBox}>{error}</div>}
 
-        <input
-          type="password"
-          placeholder="Password"
-          style={inputStyle}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <div style={field}>
+          <label style={label}>Email address</label>
+          <input
+            id="login-email"
+            type="email"
+            style={input}
+            placeholder="you@email.com"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleLogin()}
+          />
+        </div>
 
-        <button 
-          style={loading ? disabledButton : buttonStyle} 
+        <div style={field}>
+          <label style={label}>Password</label>
+          <input
+            id="login-password"
+            type="password"
+            style={input}
+            placeholder="Enter your password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleLogin()}
+          />
+        </div>
+
+        <button
+          id="login-btn"
+          style={loading ? btnDisabled : btn}
           onClick={handleLogin}
           disabled={loading}
         >
-          {loading ? "Verifying..." : "Login"}
+          {loading ? "Signing in..." : "Sign In"}
         </button>
 
-        <p style={smallText}>
-          Don’t have an account?{" "}
-          <Link to="/register" style={link}>
-            Register
-          </Link>
+        <p style={footer}>
+          Don't have an account?{" "}
+          <Link to="/register" style={footerLink}>Create one</Link>
         </p>
       </div>
     </div>
   );
 }
 
-// --- KEEPING YOUR UI STYLES EXACTLY AS THEY WERE ---
-const container: React.CSSProperties = {
-  width: "100vw",
-  height: "100vh",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  backgroundColor: "#f3f4f6",
-  margin: 0,
-  padding: 0,
+const page: React.CSSProperties = {
+  display: "flex", minHeight: "100vh",
 };
 
-const card: React.CSSProperties = {
-  width: "100%",
-  maxWidth: "380px",
-  padding: "40px",
-  backgroundColor: "#333",
-  borderRadius: "12px",
-  textAlign: "center",
-  color: "#EEE",
-  boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
-  boxSizing: "border-box",
+const panel: React.CSSProperties = {
+  width: "420px", minWidth: "420px",
+  background: "var(--sidebar)",
+  display: "flex", flexDirection: "column",
+  padding: "60px 48px",
+  position: "relative", overflow: "hidden",
 };
 
-const errorBanner: React.CSSProperties = {
-  backgroundColor: "#fee2e2",
-  color: "#dc2626",
-  padding: "10px",
-  borderRadius: "6px",
-  marginBottom: "15px",
-  fontSize: "14px",
-  border: "1px solid #f87171",
+const brandBar: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 10, marginBottom: "60px",
 };
 
-const logo: React.CSSProperties = { marginBottom: "10px", fontSize: "28px" };
-const title: React.CSSProperties = { marginBottom: "25px", fontSize: "20px" };
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  height: "45px",
-  padding: "0 15px",
-  marginBottom: "15px",
-  borderRadius: "6px",
-  border: "1px solid #555",
-  backgroundColor: "#444",
-  color: "#EEE",
-  boxSizing: "border-box",
+const brandIcon: React.CSSProperties = {
+  width: 36, height: 36, objectFit: "contain" as const, borderRadius: 6, flexShrink: 0,
 };
 
-const buttonStyle: React.CSSProperties = {
-  width: "100%",
-  height: "45px",
-  borderRadius: "6px",
-  border: "none",
-  backgroundColor: "#000",
-  color: "#EEE",
-  fontWeight: "bold",
-  cursor: "pointer",
+const brandName: React.CSSProperties = {
+  color: "#fff", fontWeight: 700, fontSize: 18, letterSpacing: "-0.01em",
 };
 
-const disabledButton: React.CSSProperties = {
-  ...buttonStyle,
-  backgroundColor: "#555",
-  cursor: "not-allowed",
+const tagline: React.CSSProperties = {
+  color: "#fff", fontSize: 32, fontWeight: 800,
+  lineHeight: 1.2, letterSpacing: "-0.02em", marginBottom: 14,
 };
 
-const smallText: React.CSSProperties = { fontSize: "14px", marginTop: "20px" };
-const link: React.CSSProperties = { color: "#3b82f6", textDecoration: "none", fontWeight: "bold" };
+const taglineSub: React.CSSProperties = {
+  color: "var(--text-sidebar)", fontSize: 15, lineHeight: 1.6,
+};
 
-export default Login;
+const decorLine: React.CSSProperties = {
+  width: 48, height: 3, background: "var(--accent)",
+  borderRadius: 2, margin: "40px 0",
+};
+
+const decorDots: React.CSSProperties = {
+  display: "flex", gap: 8, marginTop: "auto",
+};
+
+const decorDot: React.CSSProperties = {
+  width: 8, height: 8, borderRadius: "50%",
+  background: "rgba(255,255,255,0.15)",
+};
+
+const formWrap: React.CSSProperties = {
+  flex: 1, display: "flex", flexDirection: "column",
+  justifyContent: "center", padding: "60px 72px",
+  background: "var(--bg)",
+};
+
+const formTitle: React.CSSProperties = {
+  fontSize: 28, fontWeight: 800, color: "var(--text)",
+  letterSpacing: "-0.02em", marginBottom: 6,
+};
+
+const formSub: React.CSSProperties = {
+  fontSize: 14, color: "var(--text-muted)", marginBottom: 32,
+};
+
+const errorBox: React.CSSProperties = {
+  background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.25)",
+  color: "#f43f5e", padding: "10px 14px",
+  borderRadius: "var(--radius-sm)", fontSize: 13, marginBottom: 20,
+};
+
+const field: React.CSSProperties = { marginBottom: 18 };
+
+const label: React.CSSProperties = {
+  display: "block", fontSize: 13, fontWeight: 600,
+  color: "var(--text)", marginBottom: 7,
+};
+
+const input: React.CSSProperties = {
+  width: "100%", padding: "11px 14px",
+  background: "var(--bg-white)", border: "1.5px solid var(--border)",
+  borderRadius: "var(--radius-sm)", color: "var(--text)",
+  fontSize: 14, transition: "all 0.18s", boxSizing: "border-box",
+};
+
+const btn: React.CSSProperties = {
+  width: "100%", padding: "12px",
+  background: "var(--accent-grad)", border: "none",
+  borderRadius: "var(--radius-sm)", color: "#fff",
+  fontSize: 14, fontWeight: 700, letterSpacing: "0.01em",
+  boxShadow: "0 4px 14px rgba(91,108,249,0.35)",
+  marginTop: 8,
+};
+
+const btnDisabled: React.CSSProperties = {
+  ...btn, opacity: 0.55, cursor: "not-allowed",
+};
+
+const footer: React.CSSProperties = {
+  textAlign: "center", marginTop: 22, fontSize: 13, color: "var(--text-muted)",
+};
+
+const footerLink: React.CSSProperties = {
+  color: "var(--accent)", fontWeight: 600, textDecoration: "none",
+};

@@ -4,7 +4,7 @@ A full-stack web-based Study Planner application built with React (TypeScript) f
 
 ## Features
 
-- User Authentication (Register/Login with JWT)
+- User Authentication (Register/Login)
 - Study Task Management (CRUD operations)
 - Profile Management with Photo Upload
 - Password Change functionality
@@ -12,25 +12,72 @@ A full-stack web-based Study Planner application built with React (TypeScript) f
 
 ## Project Structure
 
-- **Backend Codes/** - Node.js/Express API server
-- **Frontend Codes/** - React TypeScript application
+```
+System-Integ/
+├── backend/              ← Active backend (run from root)
+├── Backend Codes/        ← Backup/reference copy
+├── Frontend Codes/       ← React TypeScript frontend
+└── package.json          ← Root scripts for running the app
+```
 
 ## Tech Stack
 
-- **Frontend:** React, TypeScript
-- **Backend:** Node.js, Express.js
+- **Frontend:** React, TypeScript, Axios
+- **Backend:** Node.js, Express.js, Multer
 - **Database:** Supabase (PostgreSQL)
-- **Authentication:** JWT (JSON Web Tokens)
 
-## Setup
+## Setup (Mac & Windows)
 
-### Backend
-1. cd Backend Codes
-2. npm install
-3. Create .env file with Supabase credentials
-4. npm start
+### Prerequisites
+- Node.js v16+ installed
+- npm installed
 
-### Frontend
-1. cd Frontend Codes
-2. npm install
-3. npm start
+### 1. Install Root Dependencies
+```bash
+npm install
+```
+
+### 2. Setup Backend
+```bash
+cd backend
+npm install
+```
+
+Make sure the `backend/.env` file exists with:
+```
+PORT=5000
+DATABASE_URL=your_supabase_connection_string
+```
+
+### 3. Setup Frontend
+```bash
+cd "Frontend Codes"
+npm install
+```
+
+### 4. Running the App
+
+**Start Backend** (from root):
+```bash
+npm run start:backend
+```
+
+**Start Frontend** (from root or `Frontend Codes/`):
+```bash
+# From root
+cd "Frontend Codes" && npm start
+
+# Or directly from Frontend Codes/
+npm start
+```
+
+> ✅ Works on both **Mac/Linux** and **Windows** (CMD & PowerShell)
+
+## Ports
+
+| Service  | Port |
+|----------|------|
+| Backend  | 5001 |
+| Frontend | 3000 |
+
+> ⚠️ **macOS Note:** Port 5000 is reserved by Apple AirPlay. Always use port **5001** for the backend.
