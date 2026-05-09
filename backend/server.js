@@ -33,7 +33,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Id'],
 }));
 
 app.use(express.json({ limit: '10mb' }));
@@ -84,9 +84,13 @@ async function initDb() {
         username VARCHAR(255) UNIQUE NOT NULL,
         email VARCHAR(255) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
+        role VARCHAR(20) DEFAULT 'student',
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
     `;
+
+    // Ensure role column exists for older tables
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'student'`;
 
     // Create the separate profiles table
     await sql`
@@ -104,9 +108,9 @@ async function initDb() {
     // Ensure the avatar_url column exists if the table was created previously
     await sql`ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(512)`;
 
-    console.log('✅ Database initialized (users and profiles tables checked/created)');
+    console.log('Database initialized (users, profiles, roles checked/created)');
   } catch (err) {
-    console.error('❌ Failed to initialize database:', err.message);
+    console.error('Failed to initialize database:', err.message);
   }
 }
 
@@ -141,8 +145,8 @@ app.get('/api/health', async (req, res) => {
 // ─── Root Route ──────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.json({
-    message: 'Study Planner API is running! 📚',
-    version: '1.0.0',
+    message: 'Study Planner API is running!',
+    version: '1.1.0',
     endpoints: {
       health: '/api/health',
       register: 'POST /api/auth/register',
@@ -152,6 +156,9 @@ app.get('/', (req, res) => {
       getProfile: 'GET /api/profile/:userId',
       updateProfile: 'POST /api/profile/:userId',
       uploadAvatar: 'POST /api/profile/:userId/avatar',
+      adminStats: 'GET /api/admin/stats',
+      adminUsers: 'GET /api/admin/users',
+      adminDeleteUser: 'DELETE /api/admin/users/:id',
     },
   });
 });
@@ -212,6 +219,7 @@ app.post('/api/auth/register', async (req, res) => {
         username: newUser[0].username,
         email: newUser[0].email,
         fullName: newUser[0].full_name,
+        role: 'student',
       },
     });
   } catch (err) {
@@ -259,6 +267,7 @@ app.post('/api/auth/login', async (req, res) => {
         username: user.username,
         email: user.email,
         fullName: user.full_name,
+        role: user.role || 'student',
       },
     });
   } catch (err) {
@@ -434,6 +443,123 @@ app.post('/api/profile/:userId/avatar', upload.single('avatar'), async (req, res
   } catch (err) {
     console.error('Error uploading avatar:', err.message);
     res.status(500).json({ message: 'Server error uploading avatar' });
+  }
+});
+
+// ─── Admin Middleware ─────────────────────────────────────────
+async function requireAdmin(req, res, next) {
+  const userId = req.headers['x-user-id'] || req.query.userId;
+  if (!userId) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  try {
+    const users = await sql`SELECT role FROM users WHERE id = ${parseInt(userId)}`;
+    if (users.length === 0 || users[0].role !== 'admin') {
+      return res.status(403).json({ message: 'Admin access required' });
+    }
+    next();
+  } catch (err) {
+    res.status(500).json({ message: 'Server error checking admin status' });
+  }
+}
+
+// ─── Admin: Get System Stats ─────────────────────────────────
+app.get('/api/admin/stats', requireAdmin, async (req, res) => {
+  try {
+    const totalUsers = await sql`SELECT COUNT(*)::int as count FROM users`;
+    const totalProfiles = await sql`SELECT COUNT(*)::int as count FROM profiles WHERE bio IS NOT NULL OR major IS NOT NULL`;
+    const recentUsers = await sql`SELECT COUNT(*)::int as count FROM users WHERE created_at > NOW() - INTERVAL '7 days'`;
+    const adminCount = await sql`SELECT COUNT(*)::int as count FROM users WHERE role = 'admin'`;
+
+    res.json({
+      totalUsers: totalUsers[0].count,
+      completedProfiles: totalProfiles[0].count,
+      newUsersThisWeek: recentUsers[0].count,
+      adminCount: adminCount[0].count,
+    });
+  } catch (err) {
+    console.error('Admin stats error:', err.message);
+    res.status(500).json({ message: 'Server error fetching stats' });
+  }
+});
+
+// ─── Admin: Get All Users ────────────────────────────────────
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const users = await sql`
+      SELECT u.id, u.full_name, u.username, u.email, u.role, u.created_at,
+             p.bio, p.major, p.school, p.avatar_url
+      FROM users u
+      LEFT JOIN profiles p ON u.id = p.user_id
+      ORDER BY u.created_at DESC
+    `;
+    res.json(users.map(u => ({
+      id: u.id,
+      fullName: u.full_name,
+      username: u.username,
+      email: u.email,
+      role: u.role || 'student',
+      createdAt: u.created_at,
+      bio: u.bio,
+      major: u.major,
+      school: u.school,
+      avatarUrl: u.avatar_url,
+    })));
+  } catch (err) {
+    console.error('Admin users error:', err.message);
+    res.status(500).json({ message: 'Server error fetching users' });
+  }
+});
+
+// ─── Admin: Delete User ──────────────────────────────────────
+app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
+  const targetId = parseInt(req.params.id);
+  const adminId = parseInt(req.headers['x-user-id'] || req.query.userId);
+
+  if (targetId === adminId) {
+    return res.status(400).json({ message: 'Cannot delete your own admin account' });
+  }
+
+  try {
+    const result = await sql`DELETE FROM users WHERE id = ${targetId} RETURNING id`;
+    if (result.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json({ message: 'User deleted successfully' });
+  } catch (err) {
+    console.error('Admin delete error:', err.message);
+    res.status(500).json({ message: 'Server error deleting user' });
+  }
+});
+
+// ─── Admin: Change User Role ─────────────────────────────────
+app.put('/api/admin/users/:id/role', requireAdmin, async (req, res) => {
+  const targetId = parseInt(req.params.id);
+  const adminId = parseInt(req.headers['x-user-id'] || req.query.userId);
+  const { role } = req.body;
+
+  if (!role || !['admin', 'student'].includes(role)) {
+    return res.status(400).json({ message: 'Role must be "admin" or "student"' });
+  }
+
+  if (targetId === adminId && role === 'student') {
+    return res.status(400).json({ message: 'Cannot demote your own account' });
+  }
+
+  try {
+    const result = await sql`
+      UPDATE users SET role = ${role} WHERE id = ${targetId} RETURNING id, username, role
+    `;
+    if (result.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json({
+      message: `User ${result[0].username} is now ${role}`,
+      user: result[0],
+    });
+  } catch (err) {
+    console.error('Admin role change error:', err.message);
+    res.status(500).json({ message: 'Server error changing role' });
   }
 });
 

@@ -57,4 +57,17 @@ export const uploadAvatar = (userId: number, formData: FormData) =>
 // Health check helper
 export const checkHealth = () => api.get('/health');
 
+// ─── Admin API Functions ─────────────────────────────────────
+export const getAdminStats = (userId: number) =>
+  api.get('/admin/stats', { headers: { 'X-User-Id': String(userId) } });
+
+export const getAdminUsers = (userId: number) =>
+  api.get('/admin/users', { headers: { 'X-User-Id': String(userId) } });
+
+export const deleteAdminUser = (adminId: number, targetId: number) =>
+  api.delete(`/admin/users/${targetId}`, { headers: { 'X-User-Id': String(adminId) } });
+
+export const changeUserRole = (adminId: number, targetId: number, role: string) =>
+  api.put(`/admin/users/${targetId}/role`, { role }, { headers: { 'X-User-Id': String(adminId) } });
+
 export default api;

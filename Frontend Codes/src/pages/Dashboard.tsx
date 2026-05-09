@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { getProfile, BACKEND_URL } from "../services/api";
 
 interface Subject {
   id: number;
@@ -75,6 +76,22 @@ function Dashboard() {
   useEffect(() => {
     if (!initialUser) navigate("/login");
   }, [navigate, initialUser]);
+
+  // Avatar: load from cache synchronously, then refresh from API silently
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(() => {
+    if (!initialUser) return null;
+    return localStorage.getItem(`sp_avatar_${initialUser.id}`) || null;
+  });
+  useEffect(() => {
+    if (!initialUser) return;
+    getProfile(initialUser.id).then(res => {
+      if (res.data?.avatar_url) {
+        const url = res.data.avatar_url.startsWith('http') ? res.data.avatar_url : `${BACKEND_URL}${res.data.avatar_url}`;
+        setAvatarUrl(url);
+        localStorage.setItem(`sp_avatar_${initialUser.id}`, url);
+      }
+    }).catch(() => {});
+  }, [initialUser]);
 
   // Save per-user data whenever it changes
   useEffect(() => { if (user) localStorage.setItem(`sp_subjects_${user.id}`, JSON.stringify(subjects)); }, [subjects, user]);
@@ -156,7 +173,12 @@ function Dashboard() {
 
           {/* User chip */}
           <div style={userChip}>
-            <div style={avatarChip}>{firstName.charAt(0).toUpperCase()}</div>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--accent-grad)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, color: '#fff', flexShrink: 0, overflow: 'hidden' }}>
+              {avatarUrl
+                ? <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : firstName.charAt(0).toUpperCase()
+              }
+            </div>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700 }}>{firstName}</div>
               <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{user?.email}</div>
@@ -177,6 +199,11 @@ function Dashboard() {
             <div style={navLink} onClick={() => navigate("/profile")}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-muted)', marginRight: 10, display: 'inline-block' }} />Profile
             </div>
+            {user?.role === "admin" && (
+              <div style={navLink} onClick={() => navigate("/admin")}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fc5c7d', marginRight: 10, display: 'inline-block', animation: 'pulse 2s ease-in-out infinite' }} />Admin Panel
+              </div>
+            )}
           </nav>
         </div>
 
@@ -472,12 +499,6 @@ const userChip: React.CSSProperties = {
   background: "var(--bg-surface)", borderRadius: "var(--radius)",
   padding: "10px 12px", marginBottom: "20px",
   border: "1px solid var(--border)",
-};
-const avatarChip: React.CSSProperties = {
-  width: 34, height: 34, borderRadius: "50%",
-  background: "var(--accent-grad)", display: "flex",
-  alignItems: "center", justifyContent: "center",
-  fontWeight: 700, fontSize: 15, flexShrink: 0,
 };
 
 const navLink: React.CSSProperties = {

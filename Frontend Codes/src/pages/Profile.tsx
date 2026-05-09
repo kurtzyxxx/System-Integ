@@ -16,7 +16,12 @@ function Profile() {
   const [bio, setBio]                     = useState("");
   const [major, setMajor]                 = useState("");
   const [school, setSchool]               = useState("");
-  const [avatarUrl, setAvatarUrl]         = useState("");
+  const [avatarUrl, setAvatarUrl]         = useState(() => {
+    const stored = localStorage.getItem("user");
+    if (!stored) return "";
+    const parsed = JSON.parse(stored);
+    return localStorage.getItem(`sp_avatar_${parsed.id}`) || "";
+  });
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState("");
@@ -51,7 +56,11 @@ function Profile() {
           setBio(res.data.bio || "");
           setMajor(res.data.major || "");
           setSchool(res.data.school || "");
-          setAvatarUrl(res.data.avatar_url ? `${BACKEND_URL}${res.data.avatar_url}` : "");
+          if (res.data.avatar_url) {
+            const url = res.data.avatar_url.startsWith('http') ? res.data.avatar_url : `${BACKEND_URL}${res.data.avatar_url}`;
+            setAvatarUrl(url);
+            localStorage.setItem(`sp_avatar_${parsed.id}`, url);
+          }
         }
       })
       .catch(console.error)
@@ -108,7 +117,11 @@ function Profile() {
     setUploadingAvatar(true);
     try {
       const res = await uploadAvatar(user.id, formData);
-      if (res.data?.avatarUrl) setAvatarUrl(`${BACKEND_URL}${res.data.avatarUrl}`);
+      if (res.data?.avatarUrl) {
+        const url = `${BACKEND_URL}${res.data.avatarUrl}`;
+        setAvatarUrl(url);
+        localStorage.setItem(`sp_avatar_${user.id}`, url);
+      }
     } catch {
       alert("Failed to upload avatar.");
     } finally {
