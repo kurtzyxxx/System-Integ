@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 interface Subject {
   id: number;
@@ -21,24 +21,31 @@ const SUBJECT_COLORS = ["#7c5cfc", "#fc5c7d", "#f59e0b", "#10b981", "#3b82f6", "
 
 function Dashboard() {
   const navigate = useNavigate();
-  const [user, setUser] = useState<any>(null);
-  const [activePage, setActivePage] = useState<"dashboard" | "subjects" | "tasks">("dashboard");
+  const location = useLocation();
 
-  const [subjects, setSubjects] = useState<Subject[]>(() => {
-    const saved = localStorage.getItem("sp_subjects");
-    return saved ? JSON.parse(saved) : [
-      { id: 1, name: "System Integration", code: "IT342", color: "#7c5cfc" },
-      { id: 2, name: "Web Development",    code: "IT321", color: "#fc5c7d" },
-    ];
+  // Read user synchronously so data is available immediately (no flash)
+  const storedUser = localStorage.getItem("user");
+  const initialUser = storedUser ? JSON.parse(storedUser) : null;
+
+  const fromInternal = !!(location.state as any)?.tab;
+
+  const [user] = useState<any>(initialUser);
+  const [activePage, setActivePage] = useState<"dashboard" | "subjects" | "tasks">(() => {
+    const tab = (location.state as any)?.tab;
+    return tab === "subjects" || tab === "tasks" ? tab : "dashboard";
   });
+  const [taskFilter, setTaskFilter] = useState<"All" | "Pending" | "Done">("All");
 
+  // Load subjects/tasks synchronously per-user (no empty flash)
+  const [subjects, setSubjects] = useState<Subject[]>(() => {
+    if (!initialUser) return [];
+    const saved = localStorage.getItem(`sp_subjects_${initialUser.id}`);
+    return saved ? JSON.parse(saved) : [];
+  });
   const [tasks, setTasks] = useState<Task[]>(() => {
-    const saved = localStorage.getItem("sp_tasks");
-    return saved ? JSON.parse(saved) : [
-      { id: 1, title: "Database ERD",      subject: "System Integration", dueDate: "2026-04-05", done: false, priority: "high" },
-      { id: 2, title: "React Auth Pages",  subject: "Web Development",    dueDate: "2026-04-07", done: false, priority: "medium" },
-      { id: 3, title: "API Integration",   subject: "System Integration", dueDate: "2026-04-10", done: true,  priority: "low" },
-    ];
+    if (!initialUser) return [];
+    const saved = localStorage.getItem(`sp_tasks_${initialUser.id}`);
+    return saved ? JSON.parse(saved) : [];
   });
 
   // Subject modal
@@ -53,14 +60,25 @@ function Dashboard() {
   const [newTaskDue,      setNewTaskDue]      = useState("");
   const [newTaskPriority, setNewTaskPriority] = useState<"high" | "medium" | "low">("medium");
 
-  useEffect(() => {
-    const stored = localStorage.getItem("user");
-    if (!stored) { navigate("/login"); return; }
-    setUser(JSON.parse(stored));
-  }, [navigate]);
+  // Theme state
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem("sp_theme");
+    return saved ? saved === "dark" : true;
+  });
 
-  useEffect(() => { localStorage.setItem("sp_subjects", JSON.stringify(subjects)); }, [subjects]);
-  useEffect(() => { localStorage.setItem("sp_tasks",    JSON.stringify(tasks));    }, [tasks]);
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
+    localStorage.setItem("sp_theme", isDark ? "dark" : "light");
+  }, [isDark]);
+
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!initialUser) navigate("/login");
+  }, [navigate, initialUser]);
+
+  // Save per-user data whenever it changes
+  useEffect(() => { if (user) localStorage.setItem(`sp_subjects_${user.id}`, JSON.stringify(subjects)); }, [subjects, user]);
+  useEffect(() => { if (user) localStorage.setItem(`sp_tasks_${user.id}`, JSON.stringify(tasks)); }, [tasks, user]);
 
   const addSubject = () => {
     if (!newSubjectName || !newSubjectCode) return;
@@ -71,6 +89,7 @@ function Dashboard() {
   };
 
   const removeSubject = (id: number) => {
+    if (!window.confirm('Remove this subject? Tasks linked to it will remain.')) return;
     setSubjects(subjects.filter(s => s.id !== id));
   };
 
@@ -89,6 +108,7 @@ function Dashboard() {
   };
 
   const removeTask = (id: number) => {
+    if (!window.confirm('Delete this task?')) return;
     setTasks(tasks.filter(t => t.id !== id));
   };
 
@@ -109,9 +129,9 @@ function Dashboard() {
 
   // Sidebar nav items
   const navItems = [
-    { key: "dashboard", label: "Dashboard",  icon: "🏠" },
-    { key: "subjects",  label: "Subjects",   icon: "📖" },
-    { key: "tasks",     label: "Tasks",      icon: "✅" },
+    { key: "dashboard", label: "Dashboard",  icon: "" },
+    { key: "subjects",  label: "Subjects",   icon: "" },
+    { key: "tasks",     label: "Tasks",      icon: "" },
   ];
 
   const getSubjectColor = (name: string) => {
@@ -121,13 +141,16 @@ function Dashboard() {
 
   const firstName = user?.fullName?.split(" ")[0] || user?.username || "Student";
 
+  // Animation helper: skip heavy animations when returning from Profile
+  const anim = (cls: string) => fromInternal ? "" : cls;
+
   return (
     <div style={layout}>
       {/* ── Sidebar ── */}
-      <aside style={sidebar}>
+      <aside style={sidebar} className={anim("slide-left")}>
         <div>
           <div style={sidebarLogo}>
-            <span style={{ fontSize: 24 }}>📚</span>
+            <img src="/logo.png" alt="Study Planner" style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'contain', filter: 'drop-shadow(0 0 8px rgba(124,92,252,0.3))', animation: 'float 3s ease-in-out infinite' }} />
             <span style={sidebarLogoText}>Study Planner</span>
           </div>
 
@@ -147,19 +170,31 @@ function Dashboard() {
                 style={activePage === item.key ? navActive : navLink}
                 onClick={() => setActivePage(item.key as any)}
               >
-                <span style={{ marginRight: 10 }}>{item.icon}</span>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: activePage === item.key ? 'var(--accent)' : 'var(--text-muted)', marginRight: 10, display: 'inline-block', transition: 'background 0.2s' }} />
                 {item.label}
               </div>
             ))}
             <div style={navLink} onClick={() => navigate("/profile")}>
-              <span style={{ marginRight: 10 }}>👤</span>Profile
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-muted)', marginRight: 10, display: 'inline-block' }} />Profile
             </div>
           </nav>
         </div>
 
-        <button style={logoutBtn} onClick={logout}>
-          <span style={{ marginRight: 8 }}>🚪</span>Logout
-        </button>
+        <div>
+          <div
+            style={themeToggle}
+            onClick={() => setIsDark(!isDark)}
+            title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            <div style={themeTrack}>
+              <div style={{ ...themeThumb, transform: isDark ? 'translateX(0)' : 'translateX(22px)' }} />
+            </div>
+            <span style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600 }}>
+              {isDark ? "Dark" : "Light"}
+            </span>
+          </div>
+          <button style={logoutBtn} onClick={logout}>Logout</button>
+        </div>
       </aside>
 
       {/* ── Main ── */}
@@ -167,25 +202,25 @@ function Dashboard() {
 
         {/* ══ DASHBOARD VIEW ══ */}
         {activePage === "dashboard" && (
-          <div className="fade-in">
+          <div className={anim("fade-in-up")}>
             <div style={pageHeader}>
               <div>
-                <h1 style={pageTitle}>Good {getGreeting()}, {firstName}! 🌟</h1>
+                <h1 style={pageTitle}>Good {getGreeting()}, {firstName}!</h1>
                 <p style={pageSubtitle}>Here's what's happening with your studies today.</p>
               </div>
               <div style={dateChip}>{formatDate(new Date())}</div>
             </div>
 
             {/* Stats row */}
-            <div style={statsRow}>
+            <div style={statsRow} className="stagger">
               {[
-                { label: "Pending Tasks",   value: pendingTasks.length,   icon: "⏳", color: "#fc5c7d" },
-                { label: "Completed",       value: completedTasks.length, icon: "✅", color: "#10b981" },
-                { label: "Subjects",        value: subjects.length,       icon: "📖", color: "#7c5cfc" },
-                { label: "Due Today",       value: dueTodayCount,         icon: "📅", color: "#f59e0b" },
+                { label: "Pending Tasks",   value: pendingTasks.length,   color: "#fc5c7d" },
+                { label: "Completed",       value: completedTasks.length, color: "#10b981" },
+                { label: "Subjects",        value: subjects.length,       color: "#7c5cfc" },
+                { label: "Due Today",       value: dueTodayCount,         color: "#f59e0b" },
               ].map(stat => (
-                <div key={stat.label} style={statCard}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>{stat.icon}</div>
+                <div key={stat.label} style={statCard} className="card-enter">
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: stat.color, margin: '0 auto 10px', animation: 'pulse 2s ease-in-out infinite' }} />
                   <div style={{ ...statValue, color: stat.color }}>{stat.value}</div>
                   <div style={statLabel}>{stat.label}</div>
                 </div>
@@ -193,7 +228,7 @@ function Dashboard() {
             </div>
 
             {/* Progress card */}
-            <div style={progressCard}>
+            <div style={progressCard} className="card-enter">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <span style={{ fontWeight: 700, fontSize: 15 }}>Overall Completion Rate</span>
                 <span style={{ fontWeight: 800, fontSize: 20, color: "#10b981" }}>{completionRate}%</span>
@@ -209,12 +244,12 @@ function Dashboard() {
             {/* Bottom grid */}
             <div style={dashGrid}>
               {/* Recent tasks */}
-              <div style={dashCard}>
+              <div style={dashCard} className="card-enter">
                 <div style={cardHead}>
-                  <span style={cardTitle}>📝 Upcoming Tasks</span>
+                  <span style={cardTitle}>Upcoming Tasks</span>
                   <button style={miniBtn} onClick={() => setActivePage("tasks")}>View All</button>
                 </div>
-                {pendingTasks.length === 0 && <p style={emptyMsg}>🎉 No pending tasks!</p>}
+                {pendingTasks.length === 0 && <p style={emptyMsg}>No pending tasks — great job!</p>}
                 {pendingTasks.slice(0, 4).map(task => (
                   <div key={task.id} style={taskRow}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -230,9 +265,9 @@ function Dashboard() {
               </div>
 
               {/* Subjects */}
-              <div style={dashCard}>
+              <div style={dashCard} className="card-enter">
                 <div style={cardHead}>
-                  <span style={cardTitle}>📚 My Subjects</span>
+                  <span style={cardTitle}>My Subjects</span>
                   <button style={miniBtn} onClick={() => setActivePage("subjects")}>Manage</button>
                 </div>
                 {subjects.length === 0 && <p style={emptyMsg}>No subjects yet.</p>}
@@ -255,18 +290,18 @@ function Dashboard() {
 
         {/* ══ SUBJECTS VIEW ══ */}
         {activePage === "subjects" && (
-          <div className="fade-in">
+          <div className={anim("fade-in-up")}>
             <div style={pageHeader}>
               <div>
-                <h1 style={pageTitle}>📖 My Subjects</h1>
+                <h1 style={pageTitle}>My Subjects</h1>
                 <p style={pageSubtitle}>Manage all your enrolled courses here.</p>
               </div>
               <button style={accentBtn} onClick={() => setShowSubjectModal(true)}>+ Add Subject</button>
             </div>
 
-            <div style={subjectGrid}>
+            <div style={subjectGrid} className="stagger">
               {subjects.map(sub => (
-                <div key={sub.id} style={{ ...subjectCard, borderTop: `3px solid ${sub.color}` }}>
+                <div key={sub.id} style={{ ...subjectCard, borderTop: `3px solid ${sub.color}` }} className="card-enter">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div>
                       <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{sub.name}</div>
@@ -281,7 +316,7 @@ function Dashboard() {
                 </div>
               ))}
               <div style={addSubjectCard} onClick={() => setShowSubjectModal(true)}>
-                <span style={{ fontSize: 32, marginBottom: 8 }}>➕</span>
+                <span style={{ fontSize: 28, marginBottom: 8, color: 'var(--accent)', fontWeight: 300 }}>+</span>
                 <span style={{ fontSize: 14, color: "var(--text-muted)" }}>Add new subject</span>
               </div>
             </div>
@@ -290,30 +325,34 @@ function Dashboard() {
 
         {/* ══ TASKS VIEW ══ */}
         {activePage === "tasks" && (
-          <div className="fade-in">
+          <div className={anim("fade-in-up")}>
             <div style={pageHeader}>
               <div>
-                <h1 style={pageTitle}>✅ My Tasks</h1>
+                <h1 style={pageTitle}>My Tasks</h1>
                 <p style={pageSubtitle}>Track your assignments and deadlines.</p>
               </div>
               <button style={accentBtn} onClick={() => setShowTaskModal(true)}>+ Add Task</button>
             </div>
 
             <div style={taskFilterRow}>
-              {["All", "Pending", "Done"].map(f => (
-                <button key={f} style={filterBtn}>{f}</button>
+              {(["All", "Pending", "Done"] as const).map(f => (
+                <button
+                  key={f}
+                  style={taskFilter === f ? filterBtnActive : filterBtn}
+                  onClick={() => setTaskFilter(f)}
+                >{f}</button>
               ))}
             </div>
 
             <div style={taskList}>
               {tasks.length === 0 && (
                 <div style={emptyState}>
-                  <span style={{ fontSize: 48 }}>📭</span>
+                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--bg-surface)', border: '2px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: 'var(--text-muted)' }}>?</div>
                   <p>No tasks yet. Add your first one!</p>
                 </div>
               )}
-              {tasks.map(task => (
-                <div key={task.id} style={{ ...taskCard, opacity: task.done ? 0.6 : 1 }}>
+              {tasks.filter(t => taskFilter === "All" ? true : taskFilter === "Pending" ? !t.done : t.done).map(task => (
+                <div key={task.id} style={{ ...taskCard, opacity: task.done ? 0.6 : 1, animation: 'fadeIn 0.3s ease both' }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
                     <input
                       type="checkbox"
@@ -332,7 +371,7 @@ function Dashboard() {
                         <span style={{ ...miniTag, background: priorityColor[task.priority] + "22", color: priorityColor[task.priority] }}>
                           {task.priority}
                         </span>
-                        {task.dueDate && <span style={{ ...miniTag, background: "var(--bg-surface)", color: "var(--text-muted)" }}>📅 {task.dueDate}</span>}
+                        {task.dueDate && <span style={{ ...miniTag, background: "var(--bg-surface)", color: "var(--text-muted)" }}>Due: {task.dueDate}</span>}
                       </div>
                     </div>
                   </div>
@@ -347,8 +386,8 @@ function Dashboard() {
       {/* ── Subject Modal ── */}
       {showSubjectModal && (
         <div style={modalOverlay} onClick={() => setShowSubjectModal(false)}>
-          <div style={modal} onClick={e => e.stopPropagation()}>
-            <h3 style={modalTitle}>📖 Add Subject</h3>
+          <div style={modal} onClick={e => e.stopPropagation()} className="scale-in">
+            <h3 style={modalTitle}>Add Subject</h3>
             <label style={modalLabel}>Subject Name</label>
             <input style={modalInput} placeholder="e.g. Data Structures" value={newSubjectName} onChange={e => setNewSubjectName(e.target.value)} />
             <label style={modalLabel}>Subject Code</label>
@@ -364,8 +403,8 @@ function Dashboard() {
       {/* ── Task Modal ── */}
       {showTaskModal && (
         <div style={modalOverlay} onClick={() => setShowTaskModal(false)}>
-          <div style={modal} onClick={e => e.stopPropagation()}>
-            <h3 style={modalTitle}>✅ Add Task</h3>
+          <div style={modal} onClick={e => e.stopPropagation()} className="scale-in">
+            <h3 style={modalTitle}>Add Task</h3>
             <label style={modalLabel}>Task Title</label>
             <input style={modalInput} placeholder="e.g. Research paper outline" value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} />
             <label style={modalLabel}>Subject</label>
@@ -377,9 +416,9 @@ function Dashboard() {
             <input style={modalInput} type="date" value={newTaskDue} onChange={e => setNewTaskDue(e.target.value)} />
             <label style={modalLabel}>Priority</label>
             <select style={modalInput} value={newTaskPriority} onChange={e => setNewTaskPriority(e.target.value as any)}>
-              <option value="high">🔴 High</option>
-              <option value="medium">🟡 Medium</option>
-              <option value="low">🟢 Low</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
             </select>
             <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
               <button style={modalCancelBtn} onClick={() => setShowTaskModal(false)}>Cancel</button>
@@ -450,6 +489,23 @@ const navLink: React.CSSProperties = {
 const navActive: React.CSSProperties = {
   ...navLink, background: "var(--accent-light)",
   color: "var(--accent)", fontWeight: 700,
+};
+
+const themeToggle: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
+  padding: "10px 12px", marginBottom: 8, borderRadius: "var(--radius-sm)",
+  transition: "background 0.2s",
+};
+const themeTrack: React.CSSProperties = {
+  width: 42, height: 22, borderRadius: 11, background: "var(--bg-surface)",
+  border: "1px solid var(--border)", position: "relative", flexShrink: 0,
+  transition: "background 0.3s, border-color 0.3s",
+};
+const themeThumb: React.CSSProperties = {
+  width: 16, height: 16, borderRadius: "50%", background: "var(--accent-grad)",
+  position: "absolute", top: 2, left: 2,
+  transition: "transform 0.3s ease",
+  boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
 };
 
 const logoutBtn: React.CSSProperties = {
@@ -582,6 +638,11 @@ const filterBtn: React.CSSProperties = {
   background: "var(--bg-card)", border: "1px solid var(--border)",
   color: "var(--text-dim)", padding: "6px 16px",
   borderRadius: "var(--radius-sm)", fontSize: 13, cursor: "pointer",
+  transition: "all 0.2s",
+};
+const filterBtnActive: React.CSSProperties = {
+  ...filterBtn, background: "var(--accent-light)",
+  color: "var(--accent)", borderColor: "var(--border-accent)", fontWeight: 700,
 };
 const taskList: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 8 };
 const emptyState: React.CSSProperties = {

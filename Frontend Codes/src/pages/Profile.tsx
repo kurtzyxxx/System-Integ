@@ -27,6 +27,17 @@ function Profile() {
 
   const [activeTab, setActiveTab] = useState<"profile" | "academic" | "security">("profile");
 
+  // Theme state (synced with Dashboard)
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem("sp_theme");
+    return saved ? saved === "dark" : true;
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
+    localStorage.setItem("sp_theme", isDark ? "dark" : "light");
+  }, [isDark]);
+
   useEffect(() => {
     const stored = localStorage.getItem("user");
     if (!stored) { navigate("/login"); return; }
@@ -64,7 +75,7 @@ function Profile() {
           localStorage.setItem("user", JSON.stringify(updated));
         }
       }
-      showMsg("Profile saved successfully! ✨", "success");
+      showMsg("Profile saved successfully!", "success");
     } catch {
       showMsg("Failed to save profile.", "error");
     } finally {
@@ -79,7 +90,7 @@ function Profile() {
     setChangingPwd(true); setPasswordMsg("");
     try {
       await changePassword({ userId: user.id, currentPassword, newPassword });
-      setPasswordMsg("Password changed successfully! 🔒"); setPasswordMsgType("success");
+      setPasswordMsg("Password changed successfully!"); setPasswordMsgType("success");
       setCurrentPassword(""); setNewPassword("");
     } catch (err: any) {
       setPasswordMsg(err.response?.data?.message || "Failed to change password."); setPasswordMsgType("error");
@@ -108,9 +119,9 @@ function Profile() {
   const firstName = user?.fullName?.split(" ")[0] || user?.username || "Student";
 
   const tabs = [
-    { key: "profile",  label: "Profile",    icon: "👤" },
-    { key: "academic", label: "Academic",   icon: "🎓" },
-    { key: "security", label: "Security",   icon: "🔒" },
+    { key: "profile",  label: "Profile",    icon: "" },
+    { key: "academic", label: "Academic",   icon: "" },
+    { key: "security", label: "Security",   icon: "" },
   ];
 
   return (
@@ -119,7 +130,7 @@ function Profile() {
       <aside style={sidebar}>
         <div>
           <div style={sidebarLogo}>
-            <span style={{ fontSize: 24 }}>📚</span>
+            <img src="/logo.png" alt="Study Planner" style={{ width: 34, height: 34, borderRadius: 8, objectFit: 'contain' as const, filter: 'drop-shadow(0 0 8px rgba(124,92,252,0.3))', animation: 'float 3s ease-in-out infinite' }} />
             <span style={sidebarLogoText}>Study Planner</span>
           </div>
 
@@ -137,24 +148,38 @@ function Profile() {
 
           <nav>
             {[
-              { label: "Dashboard", icon: "🏠", path: "/dashboard" },
-              { label: "Subjects",  icon: "📖", path: "/dashboard" },
-              { label: "Tasks",     icon: "✅", path: "/dashboard" },
-              { label: "Profile",   icon: "👤", path: "/profile", active: true },
+              { label: "Dashboard", tab: "dashboard" },
+              { label: "Subjects",  tab: "subjects" },
+              { label: "Tasks",     tab: "tasks" },
             ].map(item => (
               <div
                 key={item.label}
-                style={item.active ? navActive : navLink}
-                onClick={() => navigate(item.path)}
+                style={navLink}
+                onClick={() => navigate("/dashboard", { state: { tab: item.tab } })}
               >
-                <span style={{ marginRight: 10 }}>{item.icon}</span>{item.label}
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-muted)', marginRight: 10, display: 'inline-block' }} />{item.label}
               </div>
             ))}
+            <div style={navActive} onClick={() => navigate("/profile")}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', marginRight: 10, display: 'inline-block' }} />Profile
+            </div>
           </nav>
         </div>
-        <button style={logoutBtn} onClick={() => { localStorage.removeItem("user"); navigate("/login"); }}>
-          <span style={{ marginRight: 8 }}>🚪</span>Logout
-        </button>
+        <div>
+          <div
+            style={themeToggle}
+            onClick={() => setIsDark(!isDark)}
+            title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            <div style={themeTrack}>
+              <div style={{ ...themeThumb, transform: isDark ? 'translateX(0)' : 'translateX(22px)' }} />
+            </div>
+            <span style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600 }}>
+              {isDark ? "Dark" : "Light"}
+            </span>
+          </div>
+          <button style={logoutBtn} onClick={() => { localStorage.removeItem("user"); navigate("/login"); }}>Logout</button>
+        </div>
       </aside>
 
       {/* ── Main ── */}
@@ -162,7 +187,7 @@ function Profile() {
         <div className="fade-in">
           <div style={pageHeader}>
             <div>
-              <h1 style={pageTitle}>Your Profile 👤</h1>
+              <h1 style={pageTitle}>Your Profile</h1>
               <p style={pageSubtitle}>Manage your personal details and academic info.</p>
             </div>
           </div>
@@ -189,13 +214,13 @@ function Profile() {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploadingAvatar}
                 >
-                  {uploadingAvatar ? "Uploading..." : "📸 Change Photo"}
+                  {uploadingAvatar ? "Uploading..." : "Change Photo"}
                 </button>
                 <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8 }}>JPG, PNG or GIF · Max 5MB</p>
 
                 <div style={infoChips}>
-                  {school && <div style={infoChip}>🏫 {school}</div>}
-                  {major  && <div style={infoChip}>📚 {major}</div>}
+                  {school && <div style={infoChip}>{school}</div>}
+                  {major  && <div style={infoChip}>{major}</div>}
                 </div>
               </div>
 
@@ -208,7 +233,7 @@ function Profile() {
                       style={activeTab === t.key ? tabActive : tabBtn}
                       onClick={() => setActiveTab(t.key as any)}
                     >
-                      {t.icon} {t.label}
+                      {t.label}
                     </button>
                   ))}
                 </div>
@@ -361,6 +386,23 @@ const navLink: React.CSSProperties = {
   color: "var(--text-dim)", marginBottom: 4, fontWeight: 500,
 };
 const navActive: React.CSSProperties = { ...navLink, background: "var(--accent-light)", color: "var(--accent)", fontWeight: 700 };
+const themeToggle: React.CSSProperties = {
+  display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
+  padding: "10px 12px", marginBottom: 8, borderRadius: "var(--radius-sm)",
+  transition: "background 0.2s",
+};
+const themeTrack: React.CSSProperties = {
+  width: 42, height: 22, borderRadius: 11, background: "var(--bg-surface)",
+  border: "1px solid var(--border)", position: "relative", flexShrink: 0,
+  transition: "background 0.3s, border-color 0.3s",
+};
+const themeThumb: React.CSSProperties = {
+  width: 16, height: 16, borderRadius: "50%", background: "var(--accent-grad)",
+  position: "absolute", top: 2, left: 2,
+  transition: "transform 0.3s ease",
+  boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+};
+
 const logoutBtn: React.CSSProperties = {
   display: "flex", alignItems: "center", width: "100%", padding: "10px 12px",
   background: "transparent", border: "1px solid var(--border)",

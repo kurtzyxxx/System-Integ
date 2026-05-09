@@ -1,0 +1,23 @@
+# render.yaml — Render Blueprint for Study Planner
+# Docs: https://docs.render.com/blueprint-spec
+
+services:
+  # ── Backend API ──────────────────────────────────────────
+  - type: web
+    name: study-planner-api
+    runtime: node
+    region: singapore  # closest to PH
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false  # Set manually in Render dashboard
+      - key: ALLOWED_ORIGINS
+        sync: false  # Set to your deployed frontend URL
